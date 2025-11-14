@@ -1,0 +1,1 @@
+{"new.js": [{"cid": 0, "replicas": [1, 2]}], "hi.txt": [{"cid": 0, "replicas": [1, 3]}], "hello.txt": [{"cid": 0, "replicas": [3, 1]}]}

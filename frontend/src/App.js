@@ -111,7 +111,7 @@ function App() {
         const data = await response.json();
         throw new Error(data.error || 'Failed to append to file');
       }
-      await handleFileSelect(filename); // Refresh content
+      await handleFileSelect(filename); 
     } catch (err) {
       setError(err.message);
     } finally {
@@ -149,8 +149,7 @@ function App() {
     setSelectedFile(null);
     setFileContent('');
     setError(null);
-    // This will trigger FileEditor to show create form
-    // The FileEditor component will handle showing the form when selectedFile becomes null
+    
   };
 
   if (showDashboard) {

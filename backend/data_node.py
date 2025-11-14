@@ -78,6 +78,15 @@ def process_request(client_sock):
                     removed += 1
                 except Exception:
                     pass
+
+        
+        plain_path = os.path.join(node_dir, fname)
+        if os.path.exists(plain_path):
+            try:
+                os.remove(plain_path)
+            except Exception:
+                pass
+
         response = f'OK:{removed}'
     
     client_sock.send(response.encode())
@@ -99,15 +108,24 @@ def send_heartbeat_to_master():
         time.sleep(5)  
 
 if __name__ == '__main__':
-    
     node_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     node_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     node_sock.bind(('localhost', 5000 + node_id))
     node_sock.listen(5)
     print(f"Data Node {node_id} started on port {5000 + node_id}")
-    
-    threading.Thread(target=handle_requests, args=(node_sock,)).start()
-    threading.Thread(target=send_heartbeat_to_master).start()
-    
-    while True:
-        time.sleep(1)
+
+    request_thread = threading.Thread(target=handle_requests, args=(node_sock,), daemon=True)
+    heartbeat_thread = threading.Thread(target=send_heartbeat_to_master, daemon=True)
+    request_thread.start()
+    heartbeat_thread.start()
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print(f"Data Node {node_id} shutting down gracefully...")
+        try:
+            node_sock.close()
+        except Exception:
+            pass
+        sys.exit(0)

@@ -35,6 +35,7 @@ function SystemStatus() {
 
   const isHealthy = status?.master_available && status?.status === 'operational';
   const systemInfo = status?.system_info || {};
+  const totalNodes = systemInfo.data_nodes ? Object.keys(systemInfo.data_nodes).length : 0;
 
   return (
     <div className="system-status">
@@ -50,10 +51,10 @@ function SystemStatus() {
             <span className="status-label">Files:</span>
             <span className="status-value">{status.file_count || 0}</span>
           </div>
-          {systemInfo.alive_nodes !== undefined && (
+          {systemInfo.alive_nodes !== undefined && totalNodes > 0 && (
             <div className="status-item">
               <span className="status-label">Active Nodes:</span>
-              <span className="status-value">{systemInfo.alive_nodes} / 3</span>
+              <span className="status-value">{systemInfo.alive_nodes} / {totalNodes}</span>
             </div>
           )}
           {systemInfo.data_nodes && (

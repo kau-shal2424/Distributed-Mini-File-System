@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import './Dashboard.css';
 import NodeStatusChart from './NodeStatusChart';
 import SystemStatus from './SystemStatus';
+import FileTypeDistributionChart from './FileTypeDistributionChart';
+import FileNodeAnalytics from './FileNodeAnalytics';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -30,12 +32,14 @@ function Dashboard() {
     nodeCountHistory: [],
     labels: []
   });
+  const [systemStatus, setSystemStatus] = useState(null);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
         const response = await fetch('/api/system/status');
         const data = await response.json();
+        setSystemStatus(data);
         
         setStats(prev => {
           const newLabels = [...prev.labels];
@@ -118,10 +122,31 @@ function Dashboard() {
     },
   };
 
+  const aliveNodes = systemStatus?.system_info?.alive_nodes || 0;
+  const totalNodes = systemStatus?.system_info?.data_nodes
+    ? Object.keys(systemStatus.system_info.data_nodes).length
+    : 0;
+  const totalFiles = systemStatus?.file_count || 0;
+
   return (
     <div className="dashboard">
       <h2 className="dashboard-title">📊 System Dashboard</h2>
-      
+
+      <div className="dashboard-summary">
+        <div className="summary-card">
+          <div className="summary-label">Total Files</div>
+          <div className="summary-value">{totalFiles}</div>
+        </div>
+        <div className="summary-card">
+          <div className="summary-label">Alive Nodes</div>
+          <div className="summary-value">{aliveNodes}</div>
+        </div>
+        <div className="summary-card">
+          <div className="summary-label">Dead Nodes</div>
+          <div className="summary-value">{Math.max(totalNodes - aliveNodes, 0)}</div>
+        </div>
+      </div>
+
       <div className="dashboard-grid">
         <div className="dashboard-card">
           <h3>System Status</h3>
@@ -135,9 +160,19 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="dashboard-card full-width">
+        <div className="dashboard-card">
+          <h3>File Type Distribution</h3>
+          <FileTypeDistributionChart />
+        </div>
+
+        <div className="dashboard-card">
           <h3>Node Status Visualization</h3>
           <NodeStatusChart />
+        </div>
+
+        <div className="dashboard-card full-width">
+          <h3>File Placement Across Nodes</h3>
+          <FileNodeAnalytics />
         </div>
       </div>
     </div>

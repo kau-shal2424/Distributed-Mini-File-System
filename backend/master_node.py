@@ -10,16 +10,59 @@ metadata: Dict[str, List[Tuple[int, List[int]]]] = {}
 data_nodes_status: Dict[int, bool] = {}
 last_heartbeat: Dict[int, float] = {}
 data_nodes: List[str] = ['localhost']
-data_node_ports = {1: 5001, 2: 5002, 3: 5003}
 HEARTBEAT_TIMEOUT = 15
 CHUNK_SIZE = 1024
+METADATA_FILE = 'metadata.json'
+
+
+def load_metadata_from_disk() -> None:
+    global metadata
+    if not os.path.exists(METADATA_FILE):
+        return
+    try:
+        with open(METADATA_FILE, 'r') as f:
+            raw = json.load(f)
+        loaded: Dict[str, List[Tuple[int, List[int]]]] = {}
+        for fname, chunks in raw.items():
+            converted: List[Tuple[int, List[int]]] = []
+            for entry in chunks:
+                cid = entry.get('cid')
+                replicas = entry.get('replicas', [])
+                if isinstance(cid, int):
+                    converted.append((cid, list(replicas)))
+            if converted:
+                loaded[fname] = converted
+        metadata = loaded
+        print(f"Loaded metadata for {len(metadata)} files from {METADATA_FILE}")
+    except Exception as e:
+        print(f"Failed to load metadata from disk: {e}")
+
+
+def save_metadata_to_disk() -> None:
+    try:
+        serializable: Dict[str, List[Dict[str, List[int]]]] = {}
+        for fname, chunks in metadata.items():
+            serializable[fname] = [
+                {
+                    'cid': cid,
+                    'replicas': replicas,
+                }
+                for cid, replicas in chunks
+            ]
+        with open(METADATA_FILE, 'w') as f:
+            json.dump(serializable, f)
+    except Exception as e:
+        print(f"Failed to save metadata to disk: {e}")
+
 
 def get_alive_nodes() -> List[int]:
     return [nid for nid, alive in data_nodes_status.items() if alive]
 
+
 def choose_additional_nodes(exclude: List[int], needed: int) -> List[int]:
     alive = [n for n in get_alive_nodes() if n not in exclude]
     return alive[:max(0, needed)]
+
 
 def write_chunk_to_replicas(fname: str, cid: int, chunk: str, desired_rf: int = 2) -> List[int]:
     replicas: List[int] = []
@@ -43,6 +86,7 @@ def write_chunk_to_replicas(fname: str, cid: int, chunk: str, desired_rf: int = 
                 replicas.append(nid)
                 extra_needed -= 1
     return replicas
+
 
 def ensure_replication_for_file(fname: str, desired_rf: int = 2):
     if fname not in metadata:
@@ -72,14 +116,17 @@ def ensure_replication_for_file(fname: str, desired_rf: int = 2):
         new_entries.append((cid, alive_replicas))
     metadata[fname] = new_entries
 
+
 def ensure_replication_all(desired_rf: int = 2):
     for fname in list(metadata.keys()):
         ensure_replication_for_file(fname, desired_rf)
+
 
 def handle_connections(master_sock):
     while True:
         client_sock, addr = master_sock.accept()
         threading.Thread(target=process_connection, args=(client_sock,)).start()
+
 
 def process_connection(client_sock):
     data = client_sock.recv(4096).decode()
@@ -120,6 +167,7 @@ def process_connection(client_sock):
                     client_sock.close()
                     return
                 metadata[fname].append((cid, replicas))
+            save_metadata_to_disk()
             response = f'SUCCESS: Created {fname} with {len(chunks)} chunks (RF={len(metadata[fname][0][1]) if metadata[fname] else 0})'
     elif cmd == 'read':
         if fname not in metadata:
@@ -145,8 +193,9 @@ def process_connection(client_sock):
                 for nid in replicas:
                     send_to_node(nid, f'delete:{fname}:{cid}')
             del metadata[fname]
+            save_metadata_to_disk()
           
-            for nid in list(data_node_ports.keys()):
+            for nid in list(data_nodes_status.keys()):
                 try:
                     send_to_node(nid, f'delete_file:{fname}')
                 except Exception:
@@ -154,7 +203,7 @@ def process_connection(client_sock):
             response = 'SUCCESS: Deleted'
         else:
             
-            for nid in list(data_node_ports.keys()):
+            for nid in list(data_nodes_status.keys()):
                 try:
                     send_to_node(nid, f'delete_file:{fname}')
                 except Exception:
@@ -181,6 +230,7 @@ def process_connection(client_sock):
                     client_sock.close()
                     return
                 metadata[fname].append((cid, replicas))
+            save_metadata_to_disk()
             response = f'SUCCESS: Replaced file with {len(new_content)} bytes'
     elif cmd == 'append':
         
@@ -201,6 +251,7 @@ def process_connection(client_sock):
                         client_sock.close()
                         return
                     metadata[fname].append((cid, replicas))
+                save_metadata_to_disk()
                 response = f'SUCCESS: Created {fname} with {len(chunks)} chunks'
         else:
             
@@ -235,6 +286,7 @@ def process_connection(client_sock):
                         client_sock.close()
                         return
                     metadata[fname].append((cid, replicas))
+                save_metadata_to_disk()
                 response = f'SUCCESS: Appended {len(new_data)} bytes'
     elif cmd == 'list':
         response = json.dumps(list(metadata.keys()))
@@ -255,14 +307,15 @@ def process_connection(client_sock):
                 })
             response = json.dumps(file_metadata)
     elif cmd == 'system_info':
+        known_ids = set(data_nodes_status.keys()) | set(last_heartbeat.keys())
         system_info = {
             'data_nodes': {
                 str(nid): {
                     'status': 'alive' if data_nodes_status.get(nid, False) else 'dead',
                     'last_heartbeat': last_heartbeat.get(nid, 0),
-                    'port': data_node_ports.get(nid, 0)
+                    'port': 5000 + nid
                 }
-                for nid in data_node_ports.keys()
+                for nid in sorted(known_ids)
             },
             'total_files': len(metadata),
             'alive_nodes': len(get_alive_nodes())
@@ -271,20 +324,24 @@ def process_connection(client_sock):
     client_sock.send(response.encode())
     client_sock.close()
 
+
 def send_to_node(node_id: int, msg: str):
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((data_nodes[0], data_node_ports[node_id]))
+        port = 5000 + node_id
+        sock.connect((data_nodes[0], port))
         sock.send(msg.encode())
         sock.close()
     except Exception as e:
         print(f"Failed to send to node {node_id}: {e}")
         data_nodes_status[node_id] = False
 
+
 def get_from_node(node_id: int, msg: str) -> str:
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((data_nodes[0], data_node_ports[node_id]))
+        port = 5000 + node_id
+        sock.connect((data_nodes[0], port))
         sock.send(msg.encode())
         data = sock.recv(4096).decode()
         sock.close()
@@ -294,31 +351,33 @@ def get_from_node(node_id: int, msg: str) -> str:
         data_nodes_status[node_id] = False
         return ''
 
+
 def monitor_heartbeats():
     while True:
         time.sleep(5)
         current_time = time.time()
-        for node_id in data_node_ports:
+        for node_id in list(last_heartbeat.keys()):
             if node_id not in last_heartbeat or (current_time - last_heartbeat[node_id] > HEARTBEAT_TIMEOUT):
                 if data_nodes_status.get(node_id, False):
                     data_nodes_status[node_id] = False
                     print(f"Node {node_id} failed (heartbeat timeout). Re-replicate affected chunks.")
                     ensure_replication_all(desired_rf=2)
 
+
 def periodic_healer():
     while True:
         time.sleep(10)
         ensure_replication_all(desired_rf=2)
 
+
 if __name__ == '__main__':
-    for nid in data_node_ports:
-        data_nodes_status[nid] = False
-        last_heartbeat[nid] = 0
+    load_metadata_from_disk()
     master_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     master_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     master_sock.bind(('localhost', 5000))
     master_sock.listen(5)
     print("Master started on port 5000")
+
     connection_thread = threading.Thread(target=handle_connections, args=(master_sock,), daemon=True)
     heartbeat_thread = threading.Thread(target=monitor_heartbeats, daemon=True)
     healer_thread = threading.Thread(target=periodic_healer, daemon=True)

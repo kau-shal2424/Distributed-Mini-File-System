@@ -1,7 +1,3 @@
-"""
-REST API Server for Distributed File System
-Bridges React frontend with the existing socket-based master node
-"""
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import socket
@@ -9,26 +5,25 @@ import json
 import time
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for React frontend
+CORS(app)  
 
 MASTER_HOST = 'localhost'
 MASTER_PORT = 5000
 
 def send_command_to_master(cmd: str, fname: str = '', args: str = '') -> str:
-    """Send command to master node via socket"""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(5)
         sock.connect((MASTER_HOST, MASTER_PORT))
         if cmd in ['list', 'system_info']:
-            # Commands that don't need filename
+            
             msg = f"{cmd}::"
         elif fname:
             msg = f"{cmd}:{fname}:{args}"
         else:
             msg = f"{cmd}::{args}"
         sock.send(msg.encode())
-        response = sock.recv(65536).decode()  # Increased buffer for larger files
+        response = sock.recv(65536).decode()  
         sock.close()
         return response
     except Exception as e:
@@ -36,7 +31,6 @@ def send_command_to_master(cmd: str, fname: str = '', args: str = '') -> str:
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    """Check if master node is available"""
     try:
         response = send_command_to_master('list', '')
         return jsonify({'status': 'healthy', 'master_available': True}), 200
@@ -45,7 +39,6 @@ def health_check():
 
 @app.route('/api/files', methods=['GET'])
 def list_files():
-    """List all files in the system"""
     try:
         response = send_command_to_master('list', '')
         if response.startswith('ERROR'):
@@ -57,13 +50,12 @@ def list_files():
 
 @app.route('/api/files/<path:filename>', methods=['GET'])
 def read_file(filename):
-    """Read file contents"""
     try:
         response = send_command_to_master('read', filename)
         if response.startswith('ERROR'):
             return jsonify({'error': response}), 404
         if response.startswith('WARNING'):
-            # Handle partial reads
+            
             return jsonify({
                 'content': response,
                 'warning': True
@@ -74,7 +66,6 @@ def read_file(filename):
 
 @app.route('/api/files/<path:filename>', methods=['POST'])
 def create_file(filename):
-    """Create a new file"""
     try:
         data = request.get_json()
         content = data.get('content', '')
@@ -94,7 +85,6 @@ def create_file(filename):
 
 @app.route('/api/files/<path:filename>', methods=['PUT'])
 def write_file(filename):
-    """Write/overwrite file contents"""
     try:
         data = request.get_json()
         content = data.get('content', '')
@@ -112,7 +102,6 @@ def write_file(filename):
 
 @app.route('/api/files/<path:filename>/append', methods=['POST'])
 def append_to_file(filename):
-    """Append content to a file"""
     try:
         data = request.get_json()
         content = data.get('content', '')
@@ -132,7 +121,6 @@ def append_to_file(filename):
 
 @app.route('/api/files/<path:filename>', methods=['DELETE'])
 def delete_file(filename):
-    """Delete a file"""
     try:
         response = send_command_to_master('delete', filename)
         if response.startswith('ERROR'):
@@ -147,7 +135,6 @@ def delete_file(filename):
 
 @app.route('/api/files/<path:filename>/metadata', methods=['GET'])
 def get_file_metadata(filename):
-    """Get file metadata (chunks, replicas, etc.)"""
     try:
         response = send_command_to_master('metadata', filename)
         if response.startswith('ERROR'):
@@ -159,7 +146,6 @@ def get_file_metadata(filename):
 
 @app.route('/api/system/status', methods=['GET'])
 def system_status():
-    """Get system status and node information"""
     try:
         file_response = send_command_to_master('list', '')
         files = json.loads(file_response) if not file_response.startswith('ERROR') else []

@@ -1,4 +1,4 @@
-.dashboard {
+ .dashboard {
   padding: 2rem;
   max-width: 1800px;
   margin: 0 auto;
@@ -6,22 +6,54 @@
 
 .dashboard-title {
   font-size: 2rem;
-  color: #333;
+  color: #e5e7eb;
   margin-bottom: 2rem;
   text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.dashboard-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.summary-card {
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  box-shadow: 0 14px 35px rgba(15, 23, 42, 0.45);
+}
+
+.summary-label {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+  margin-bottom: 0.35rem;
+}
+
+.summary-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #f9fafb;
 }
 
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
   gap: 2rem;
+  align-items: flex-start;
 }
 
 .dashboard-card {
-  background: white;
-  border-radius: 12px;
+  background: #ffffff;
+  border-radius: 16px;
   padding: 1.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.25);
+  border: 1px solid rgba(148, 163, 184, 0.35);
 }
 
 .dashboard-card.full-width {
@@ -76,6 +108,58 @@
   text-align: center;
   color: #999;
   font-style: italic;
+}
+
+.file-node-analytics {
+  margin-top: 0.5rem;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.analytics-header {
+  display: grid;
+  grid-template-columns: 2fr 0.6fr 0.9fr 1.8fr;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #f3f4f6;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+}
+
+.analytics-body {
+  overflow-y: auto;
+}
+
+.analytics-row {
+  display: grid;
+  grid-template-columns: 2fr 0.6fr 0.9fr 1.8fr;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  align-items: center;
+  border-top: 1px solid #e5e7eb;
+}
+
+.analytics-row:nth-child(odd) {
+  background: #f9fafb;
+}
+
+.analytics-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.analytics-nodes {
+  color: #4b5563;
 }
 
 @media (max-width: 968px) {
