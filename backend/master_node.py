@@ -238,6 +238,36 @@ def process_connection(client_sock):
                 response = f'SUCCESS: Appended {len(new_data)} bytes'
     elif cmd == 'list':
         response = json.dumps(list(metadata.keys()))
+    elif cmd == 'metadata':
+        if fname not in metadata:
+            response = 'ERROR: File not found'
+        else:
+            file_metadata = {
+                'filename': fname,
+                'chunks': len(metadata[fname]),
+                'replicas': []
+            }
+            for cid, replicas in metadata[fname]:
+                file_metadata['replicas'].append({
+                    'chunk_id': cid,
+                    'replica_nodes': replicas,
+                    'replica_count': len(replicas)
+                })
+            response = json.dumps(file_metadata)
+    elif cmd == 'system_info':
+        system_info = {
+            'data_nodes': {
+                str(nid): {
+                    'status': 'alive' if data_nodes_status.get(nid, False) else 'dead',
+                    'last_heartbeat': last_heartbeat.get(nid, 0),
+                    'port': data_node_ports.get(nid, 0)
+                }
+                for nid in data_node_ports.keys()
+            },
+            'total_files': len(metadata),
+            'alive_nodes': len(get_alive_nodes())
+        }
+        response = json.dumps(system_info)
     client_sock.send(response.encode())
     client_sock.close()
 
